@@ -18,6 +18,12 @@ class Main(tk.Frame):
                                     compound=tk.TOP, image=self.add_img)
         btn_open_dialog.pack(side=tk.LEFT)
 
+        self.update_img = tk.PhotoImage(file='update.gif')
+        btn_edit_dialog = tk.Button(toolbar, text='Редактировать', bg='#d7d8e0', bd=0, image=self.update_img, compound=tk.TOP, command=self.open_update_gialog)
+
+        btn_edit_dialog.pack(side=tk.LEFT)
+
+
         self.tree = ttk.Treeview(self, columns=('ID', 'description', 'costs', 'total'), height=15, show='headings')
 
         self.tree.column('ID', width=30, anchor=tk.CENTER)
@@ -35,7 +41,11 @@ class Main(tk.Frame):
     def records(self, description, costs, total):
         self.db.insert_data(description, costs, total)
         self.view_records()
-
+    def update_record(self, description, costs, total):
+        self.db.c.execute("""UPDATE finance SET description=?, costs=?, total=? WHERE ID=?""",
+                          (description, costs, total, self.tree.set(self.tree.selection()[0], '#1')))
+        self.db.conn.commit()
+        self.view_records()
     def view_records(self):
         self.db.c.execute("""SELECT * FROM finance""")
         [self.tree.delete(i) for i in self.tree.get_children()]
@@ -44,6 +54,8 @@ class Main(tk.Frame):
     def open_dialog(self):
         Child()
 
+    def open_update_gialog(self):
+        Update()
 
 class Child(tk.Toplevel):
     def __init__(self):
@@ -76,12 +88,24 @@ class Child(tk.Toplevel):
         btn_cancel = ttk.Button(self, text='Закрыть', command=self.destroy)
         btn_cancel.place(x=300, y=170)
 
-        btn_ok = ttk.Button(self, text='Добавить')
-        btn_ok.place(x=220, y=170)
-        btn_ok.bind('<Button-1>', lambda event: self.view.records(self.entry_description.get(), self.entry_money.get(), self.combobox.get()))
+        self.btn_ok = ttk.Button(self, text='Добавить')
+        self.btn_ok.place(x=220, y=170)
+        self.btn_ok.bind('<Button-1>', lambda event: self.view.records(self.entry_description.get(), self.combobox.get(), self.entry_money.get()))
 
         self.grab_set()
         self.focus_set()
+
+class Update(Child):
+    def __init__(self):
+        super().__init__()
+        self.init_edit()
+        self.view = app
+
+    def init_edit(self):
+        self.title('Редактировать позицию')
+        btn_edit = ttk.Button(self, text='Редактировать')
+        btn_edit.place(x=205, y=170)
+        btn_edit.bind('<Button-1>', lambda event: self.view.update_record(self.entry_description.get(), self.combobox.get(), self.entry_money.get()))
 
 class DB:
     def __init__(self):
