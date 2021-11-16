@@ -19,10 +19,26 @@ class Main(tk.Frame):
         btn_open_dialog.pack(side=tk.LEFT)
 
         self.update_img = tk.PhotoImage(file='update.gif')
-        btn_edit_dialog = tk.Button(toolbar, text='Редактировать', bg='#d7d8e0', bd=0, image=self.update_img, compound=tk.TOP, command=self.open_update_gialog)
+        btn_edit_dialog = tk.Button(toolbar, text='Редактировать', bg='#d7d8e0', bd=0, image=self.update_img, compound=tk.TOP, command=self.open_update_dialog)
 
         btn_edit_dialog.pack(side=tk.LEFT)
 
+        self.delete_img = tk.PhotoImage(file='delete.gif')
+        btn_delete = tk.Button(toolbar, text='Удалить', bg='#d7d8e0', bd=0, image=self.delete_img, compound=tk.TOP, command=self.delete_records)
+
+        btn_delete.pack(side=tk.LEFT)
+
+        self.search_img = tk.PhotoImage(file='search.gif')
+        btn_search = tk.Button(toolbar, text='Поиск', bg='#d7d8e0', bd=0, image=self.search_img, compound=tk.TOP,
+                               command=self.open_search_dialog)
+
+        btn_search.pack(side=tk.LEFT)
+
+        self.refresh_img = tk.PhotoImage(file='refresh.gif')
+        btn_refresh = tk.Button(toolbar, text='Обновить', bg='#d7d8e0', bd=0, image=self.refresh_img, compound=tk.TOP,
+                                command=self.view_records)
+
+        btn_refresh.pack(side=tk.LEFT)
 
         self.tree = ttk.Treeview(self, columns=('ID', 'description', 'costs', 'total'), height=15, show='headings')
 
@@ -36,7 +52,11 @@ class Main(tk.Frame):
         self.tree.heading('costs', text='Статья дохода/расхода')
         self.tree.heading('total', text='Сумма')
 
-        self.tree.pack()
+        self.tree.pack(side=tk.LEFT)
+
+        scroll = tk.Scrollbar(self, command=self.tree.yview)
+        scroll.pack(side=tk.LEFT, fill=tk.Y)
+        self.tree.configure(yscrollcommand=scroll.set)
 
     def records(self, description, costs, total):
         self.db.insert_data(description, costs, total)
@@ -50,13 +70,25 @@ class Main(tk.Frame):
         self.db.c.execute("""SELECT * FROM finance""")
         [self.tree.delete(i) for i in self.tree.get_children()]
         [self.tree.insert('', 'end', values=row) for row in self.db.c.fetchall()]
+    def delete_records(self):
+        for selection_item in self.tree.selection():
+            self.db.c.execute("""DELETE FROM finance WHERE id=?""", (self.tree.set(selection_item, '#1'),))
+        self.db.conn.commit()
+        self.view_records()
 
+    def search_records(self, description):
+        description = ('%' + description + '%')
+        self.db.c.execute("""SELECT * FROM finance WHERE description LIKE ?""", description)
+        [self.tree.delete(i) for i in self.tree.get_children()]
+        [self.tree.insert('', 'end', values=row) for row in self.db.c.fetchall()]
     def open_dialog(self):
         Child()
 
-    def open_update_gialog(self):
+    def open_update_dialog(self):
         Update()
 
+    def open_search_dialog(self):
+        Search()
 class Child(tk.Toplevel):
     def __init__(self):
         super().__init__(root)
@@ -98,14 +130,50 @@ class Child(tk.Toplevel):
 class Update(Child):
     def __init__(self):
         super().__init__()
+        self.db = db
         self.init_edit()
         self.view = app
-
+        self.default_data()
     def init_edit(self):
         self.title('Редактировать позицию')
         btn_edit = ttk.Button(self, text='Редактировать')
         btn_edit.place(x=205, y=170)
         btn_edit.bind('<Button-1>', lambda event: self.view.update_record(self.entry_description.get(), self.combobox.get(), self.entry_money.get()))
+
+
+    def default_data(self):
+        self.db.c.execute("""SELECT * FROM finance WHERE id=?""", (self.view.tree.set(self.view.tree.selection()[0], '#1'),))
+        row = self.db.c.fetchone()
+        self.entry_description.insert(0, row[1])
+        if row[2] != 'Доход':
+            self.combobox.current(1)
+        self.entry_money.insert(0, row[3])
+
+class Search(tk.Toplevel):
+    def __init__(self):
+        super().__init__()
+        self.init_search()
+        self.view = app
+
+    def init_search(self):
+        self.title('Поиск')
+        self.geometry('300x100+400+300')
+        self.resizable(False, False)
+
+        label_search = tk.Label(self,text='Посик')
+        label_search.place(x=50, y=20)
+
+        self.entry_search = ttk.Entry(self)
+        self.entry_search.place(x=105, y=20, width=150)
+
+        btn_cancel = ttk.Button(self, text='Закрыть', command=self.destroy)
+        btn_cancel.place(x=185,y=50)
+
+        btn_search = ttk.Button(self, text='Поиск')
+        btn_search.place(x=105, y=50)
+        btn_search.bind('<Button-1>', lambda event: self.view.search_records(self.entry_search.get()))
+        btn_search.bind('<Button-1>', lambda event: self.destroy(), add='+')
+
 
 class DB:
     def __init__(self):
@@ -125,6 +193,6 @@ if __name__ == '__main__':
     app = Main(root)
     app.pack()
     root.title('Финансы')
-    root.geometry('650x450+300+200')
+    root.geometry('665x450+300+200')
     root.resizable(False, False)
     root.mainloop()
